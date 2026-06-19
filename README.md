@@ -5,23 +5,47 @@
 [![Go Version](https://img.shields.io/badge/Go-1.21%2B-blue.svg)](https://golang.org)
 [![License](https://img.shields.io/badge/License-Internal-red.svg)]
 
-PeGS is a high-throughput, privacy-preserving synthetic data generation pipeline. It is engineered for large-scale LLM training datasets where statistical utility and rigorous privacy guarantees are paramount.
+PeGS is a high-throughput, privacy-preserving synthetic data generation pipeline. It is engineered for large-scale LLM training datasets where statistical utility and rigorous privacy guarantees are paramount. By combining the concurrency of Go with the raw power of CUDA, PeGS generates high-fidelity synthetic records that respect both $\ell$-diversity and $\epsilon$-differential privacy.
 
 ## 🚀 Key Technical Differentiators
 
-### 1. CGO-Free CUDA Integration
+### 1. Lock-Free Massively Parallel Orchestration
+PeGS uses a "Divide and Conquer" approach to data generation. The dataset is sharded into independent chunks, each managed by a dedicated Go worker (goroutine). 
+*   **Spatial Partitioning**: Workers write to non-overlapping regions of memory, eliminating the need for mutexes or synchronization overhead.
+*   **Worker Synergy**: Orchestrates thousands of parallel MCMC chains across CPU cores while managing the GPU pipeline.
+
+### 2. SIMT-Accelerated Similarity Search
+The core bottleneck of synthetic generation—finding similar records—is offloaded to CUDA.
+*   **Manhattan Distance Optimization**: The LSH kernel uses an early-exit strategy for distance calculations. Once a row's distance exceeds the threshold, computation stops immediately, saving millions of cycles per batch.
+*   **SIMT Efficiency**: Leverages the GPU's Single Instruction, Multiple Threads architecture to evaluate thousands of candidate neighbors simultaneously.
+
+### 3. Stochastic Neighborhood Estimation (Monte Carlo)
+Instead of exhaustive searches, PeGS employs Monte Carlo methods to approximate local density:
+*   **Random Subset Sampling**: The CUDA kernel samples 500 random rows per query to estimate the empirical distribution, providing a fast and accurate approximation of the local neighborhood.
+*   **Inverse Transform Sampling**: Go workers use stochastic sampling to select tokens from the final privacy-perturbed distribution, ensuring high-fidelity synthetic output.
+
+### 4. CGO-Free CUDA Integration
 Standard CGO calls incur a $50\text{ns}$--$100\text{ns}$ penalty due to stack switching. PeGS utilizes `purego` for dynamic symbol binding, allowing Go to call CUDA kernels directly via assembly stubs. This maximizes throughput for the LSH-based neighbor search.
 
-### 2. Zero-Allocation Memory Model
+### 5. Zero-Allocation Memory Model
 To handle $10^7+$ records without triggering Garbage Collection (GC) thrashing, PeGS uses a **flat contiguous `uint16` array**. This layout is $100\%$ invisible to the Go GC and maximizes CPU L3 cache locality.
 
-### 3. Numerically Stable Privacy Engines
+### 6. Numerically Stable Privacy Engines
 *   **$\ell$-Diversity**: Uses a high-speed bisection search to find the minimum perturbation $\alpha$ required to meet entropy targets.
 *   **$\epsilon$-Differential Privacy**: Implements the Exponential Mechanism with **Log-Sum-Exp** stabilization to prevent floating-point overflow during probability scaling.
 
 ---
 
-## 🏗 Architecture
+## 🏗 Architecture & Flow
+
+The system operates as a hybrid CPU-GPU pipeline, maximizing the strengths of both architectures:
+
+1.  **Data Partitioning**: The main process segments the dataset and spawns parallel Go workers.
+2.  **Batch Orchestration**: Workers group rows into batches (default 64) to minimize kernel launch overhead.
+3.  **CUDA LSH Search**: The GPU performs massively parallel similarity checks using Manhattan distance with early-exit logic.
+4.  **Privacy Application**: Go workers apply $\ell$-diversity and $\epsilon$-DP to the empirical distributions returned by the GPU.
+5.  **Monte Carlo Sampling**: Final synthetic tokens are drawn via inverse transform sampling to refine the synthetic record.
+6.  **Gibbs Iteration**: The process repeats (MCMC) to ensure the synthetic records converge to the target joint distribution.
 
 ```mermaid
 graph LR
