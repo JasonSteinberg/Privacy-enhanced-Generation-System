@@ -5,7 +5,7 @@
 [![Go Version](https://img.shields.io/badge/Go-1.21%2B-blue.svg)](https://golang.org)
 [![License](https://img.shields.io/badge/License-Internal-red.svg)]
 
-PeGS is a high-throughput, privacy-preserving synthetic data generation pipeline. It is engineered for large-scale LLM training datasets where statistical utility and rigorous privacy guarantees are paramount. By combining the concurrency of Go with the raw power of CUDA, PeGS generates high-fidelity synthetic records that respect both $\ell$-diversity and $\epsilon$-differential privacy.
+PeGS is a high-throughput, privacy-preserving synthetic data generation pipeline. It is engineered for large-scale Medical training datasets where statistical utility and rigorous privacy guarantees are paramount. By combining the concurrency of Go with the raw power of CUDA, PeGS generates high-fidelity synthetic records that respect both $\ell$-diversity and $\epsilon$-differential privacy.
 
 ## 🚀 Key Technical Differentiators
 
@@ -25,10 +25,10 @@ Instead of exhaustive searches, PeGS employs Monte Carlo methods to approximate 
 *   **Inverse Transform Sampling**: Go workers use stochastic sampling to select tokens from the final privacy-perturbed distribution, ensuring high-fidelity synthetic output.
 
 ### 4. CGO-Free CUDA Integration
-Standard CGO calls incur a $50\text{ns}$--$100\text{ns}$ penalty due to stack switching. PeGS utilizes `purego` for dynamic symbol binding, allowing Go to call CUDA kernels directly via assembly stubs. This maximizes throughput for the LSH-based neighbor search.
+Standard CGO calls incur a $50\text{ns}$ to $100\text{ns}$ penalty due to stack switching. PeGS utilizes `purego` for dynamic symbol binding, allowing Go to call CUDA kernels directly via assembly stubs. This maximizes throughput for the LSH-based neighbor search.
 
 ### 5. Zero-Allocation Memory Model
-To handle $10^7+$ records without triggering Garbage Collection (GC) thrashing, PeGS uses a **flat contiguous `uint16` array**. This layout is $100\%$ invisible to the Go GC and maximizes CPU L3 cache locality.
+To handle $10^7+$ records without triggering Garbage Collection (GC) thrashing, PeGS uses a **flat contiguous `uint16` array**. This layout is invisible to the Go GC and maximizes CPU L3 cache locality.
 
 ### 6. Numerically Stable Privacy Engines
 *   **$\ell$-Diversity**: Uses a high-speed bisection search to find the minimum perturbation $\alpha$ required to meet entropy targets.
